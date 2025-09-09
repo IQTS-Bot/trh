@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Relica — Functions Self‑Test</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Arial;padding:22px;max-width:800px;margin:auto;color:#111}
+    h1{margin:0 0 4px} .muted{color:#666;margin:0 0 20px}
+    .box{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    button{padding:8px 12px;border-radius:8px;border:1px solid #999;background:#f5f5f5;cursor:pointer}
+    pre{background:#111;color:#eee;padding:10px;border-radius:8px;overflow:auto;max-height:300px}
+    a.btn{display:inline-block;margin-top:8px;text-decoration:none;border:1px solid #999;padding:8px 12px;border-radius:8px;background:#fafafa;color:#111}
+  </style>
+</head>
+<body>
+  <h1>Relica — Serverless Functions Self‑Test</h1>
+  <p class="muted">Use this page to confirm your Netlify functions are live. Then open <a href="app.html">app.html</a> for the full app.</p>
+
+  <div class="box">
+    <h3>1) Health Check</h3>
+    <button id="btnHealth">Run health</button>
+    <div id="outHealth"></div>
+  </div>
+
+  <div class="box">
+    <h3>2) Vision Check (requires VISION_API_KEY)</h3>
+    <p>Reports if the Vision function is configured and reachable.</p>
+    <button id="btnVision">Ping Vision</button>
+    <div id="outVision"></div>
+  </div>
+
+  <div class="box">
+    <h3>3) Aggregator Check</h3>
+    <p>Calls <code>market-aggregate</code> for <em>antique compass</em>.</p>
+    <button id="btnAgg">Run aggregator</button>
+    <div id="outAgg"></div>
+  </div>
+
+  <div class="box">
+    <h3>Open the App</h3>
+    <a class="btn" href="app.html">Open app.html</a>
+  </div>
+
+<script>
+async function call(url, options){
+  const r = await fetch(url, options || {});
+  const t = await r.text(); try{ return { ok:r.ok, json: JSON.parse(t) }; }catch(e){ return { ok:r.ok, text:t }; }
+}
+document.getElementById('btnHealth').onclick = async () => {
+  const out = document.getElementById('outHealth'); out.innerHTML = '...';
+  const res = await call('/.netlify/functions/health');
+  out.innerHTML = `<pre>${JSON.stringify(res,null,2)}</pre>`;
+};
+document.getElementById('btnVision').onclick = async () => {
+  const out = document.getElementById('outVision'); out.innerHTML = '...';
+  const res = await call('/.netlify/functions/vision', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ imageData: 'data:image/png;base64,iVBORw0KGgo=' }) });
+  out.innerHTML = `<pre>${JSON.stringify(res,null,2)}</pre>`;
+};
+document.getElementById('btnAgg').onclick = async () => {
+  const out = document.getElementById('outAgg'); out.innerHTML = '...';
+  const res = await call('/.netlify/functions/market-aggregate?query=antique%20compass');
+  out.innerHTML = `<pre>${JSON.stringify(res,null,2)}</pre>`;
+};
+</script>
+</body>
+</html>

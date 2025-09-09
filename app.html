@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Relica — Multi‑Platform Analysis</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    :root{--bg:#0e0f11;--panel:#17181b;--muted:#212329;--text:#e9eaee;--sub:#a8acb3;--accent:#8a6d3b;--accent2:#a47c3b;--ok:#47c27a;--warn:#ffb74d;--border:#2f323a;--bad:#ef5350}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+    .wrap{max-width:1100px;margin:24px auto;padding:16px} .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+    header{display:flex;align-items:center;gap:14px;padding:16px;border-bottom:1px solid var(--border)} header img{width:44px;height:44px;object-fit:contain}
+    header .brand{display:flex;flex-direction:column} header .brand h1{margin:0;font-size:22px;color:var(--accent)} header .brand small{color:var(--sub)}
+    .pill{margin-left:auto;border:1px solid var(--border);border-radius:999px;padding:4px 10px;color:var(--sub);font-size:12px}
+    .content{padding:16px} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px} @media (max-width: 900px){.grid2{grid-template-columns:1fr}}
+    .camera{border:1px dashed var(--border);border-radius:12px;min-height:280px;display:flex;align-items:center;justify-content:center;background:var(--muted);position:relative}
+    .camera video,.camera img{width:100%;height:100%;object-fit:cover;border-radius:12px;display:none} .camera .ph{color:var(--sub);display:flex;flex-direction:column;gap:8px;align-items:center}
+    .controls{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap} button{cursor:pointer;border:1px solid var(--border);background:var(--muted);color:var(--text);padding:10px 14px;border-radius:10px;font-weight:600}
+    button.primary{background:var(--accent);color:#000;border-color:transparent} button.primary:hover{background:var(--accent2)}
+    input[type="text"]{flex:1;border:1px solid var(--border);background:var(--muted);color:var(--text);border-radius:10px;padding:10px 12px}
+    .status{margin-top:10px;padding:10px;border-radius:10px;border:1px solid var(--border);background:rgba(255,183,77,.08);color:var(--warn)}
+    .row{display:flex;gap:10px;align-items:center;color:var(--sub);margin:8px 0} .results{margin-top:16px}
+    .resultgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;max-height:520px;overflow:auto;padding-right:6px}
+    .tile{background:var(--muted);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;gap:8px;flex-direction:column}
+    .tile h3{margin:0;color:var(--accent);font-size:16px;display:flex;justify-content:space-between;gap:8px}
+    .meta{display:flex;gap:8px;flex-wrap:wrap} .meta .tag{border:1px solid var(--border);border-radius:999px;padding:4px 8px;font-size:12px;color:var(--sub)}
+    .price{font-weight:800;color:var(--ok)} .bad{color:var(--bad)} .desc{color:var(--sub);font-size:14px}
+    .tile a{border:1px solid var(--border);padding:8px 10px;border-radius:8px;text-align:center;color:var(--text);text-decoration:none}
+    .tile a:hover{background:var(--accent);color:#000;border-color:transparent} footer{padding:14px;border-top:1px solid var(--border);text-align:center;color:var(--sub)}
+    .debug{margin-top:10px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#ccc;white-space:pre-wrap;background:#111;border:1px solid var(--border);border-radius:8px;padding:8px;display:none}
+  </style>
+</head>
+<body>
+<div class="wrap card">
+  <header>
+    <img src="logo_gold_color.png" alt="Relica logo">
+    <div class="brand">
+      <h1>Relica</h1>
+      <small>Multi‑Platform Antique Analysis</small>
+    </div>
+    <div class="pill">Client‑side UI + Serverless</div>
+  </header>
+  <div class="content">
+    <div class="grid2">
+      <div>
+        <div class="camera" id="cameraBox">
+          <div class="ph" id="ph"><i class="fa-solid fa-camera"></i> Camera preview</div>
+          <video id="cam" autoplay playsinline></video>
+          <img id="shot" alt="capture">
+        </div>
+        <div class="controls">
+          <button id="start">Start Camera</button>
+          <button id="capture" class="primary">Capture & Analyze</button>
+          <button id="upload"><i class="fa-regular fa-image"></i> Upload</button>
+          <input type="file" id="file" accept="image/*" style="display:none">
+        </div>
+        <div class="status" id="status">Tip: add a couple keywords like “Victorian brass compass”.</div>
+        <div class="controls" style="margin-top:8px">
+          <input id="keywords" type="text" placeholder="Optional: extra keywords to refine">
+          <button id="search">Search Markets</button>
+          <button id="idFallback">Try Text‑Only</button>
+        </div>
+        <div id="debug" class="debug"></div>
+      </div>
+      <div>
+        <div class="row"><strong>Identified:</strong> <span id="name">—</span></div>
+        <div class="row"><strong>Description:</strong> <span id="desc">—</span></div>
+        <img id="preview" style="margin-top:10px;width:100%;max-height:320px;object-fit:cover;border:1px solid var(--border);border-radius:12px;display:none">
+      </div>
+    </div>
+
+    <div class="results">
+      <h2 style="color:var(--accent);margin:14px 0 8px 0">Marketplaces</h2>
+      <div id="grid" class="resultgrid"></div>
+    </div>
+  </div>
+  <footer>© Relica — Scan • Compare • Value</footer>
+</div>
+
+<script>
+const cam = document.getElementById('cam');
+const ph = document.getElementById('ph');
+const startBtn = document.getElementById('start');
+const captureBtn = document.getElementById('capture');
+const uploadBtn = document.getElementById('upload');
+const fileInput = document.getElementById('file');
+const statusBox = document.getElementById('status');
+const keywords = document.getElementById('keywords');
+const searchBtn = document.getElementById('search');
+const idFallbackBtn = document.getElementById('idFallback');
+const nameEl = document.getElementById('name');
+const descEl = document.getElementById('desc');
+const preview = document.getElementById('preview');
+const grid = document.getElementById('grid');
+const debugEl = document.getElementById('debug');
+
+let stream = null;
+let imgData = null;
+let lastGuess = '';
+
+function status(t){ statusBox.textContent = t; }
+function debug(x){ try{ debugEl.style.display='block'; debugEl.textContent = (typeof x==='string')?x:JSON.stringify(x,null,2); }catch(e){} }
+
+startBtn.onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    cam.srcObject = stream; cam.style.display = 'block'; ph.style.display = 'none';
+    status('Camera ready');
+  } catch(e) { status('Camera access denied. Use Upload.'); debug(e); }
+};
+
+uploadBtn.onclick = () => fileInput.click();
+fileInput.onchange = (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => { imgData = reader.result; preview.src = imgData; preview.style.display = 'block'; status('Image ready. Analyze or type keywords.'); };
+  reader.readAsDataURL(f);
+};
+
+captureBtn.onclick = () => {
+  if (!stream && !imgData) return status('Open camera or upload first.');
+  if (stream) {
+    const canvas = document.createElement('canvas'); canvas.width = cam.videoWidth; canvas.height = cam.videoHeight;
+    const ctx = canvas.getContext('2d');
+    const maxSide = 1280;
+    let w = canvas.width, h = canvas.height;
+    if (w > maxSide || h > maxSide) {
+      const ratio = Math.min(maxSide / w, maxSide / h);
+      const c2 = document.createElement('canvas'); c2.width = w*ratio; c2.height = h*ratio;
+      c2.getContext('2d').drawImage(cam, 0, 0, c2.width, c2.height);
+      imgData = c2.toDataURL('image/jpeg', 0.85);
+    } else {
+      ctx.drawImage(cam, 0, 0); imgData = canvas.toDataURL('image/jpeg', 0.85);
+    }
+    preview.src = imgData; preview.style.display = 'block';
+  }
+  analyzeAndSearch();
+};
+
+searchBtn.onclick = () => {
+  const terms = (keywords.value || lastGuess || '').trim();
+  if (!terms) return status('Type keywords or run analyze.');
+  aggregate(terms);
+};
+
+idFallbackBtn.onclick = () => {
+  const terms = (keywords.value || '').trim();
+  if (!terms) return status('Type a few keywords then Try Text‑Only.');
+  nameEl.textContent = terms;
+  descEl.textContent = 'Manual keywords';
+  aggregate(terms);
+};
+
+async function analyzeAndSearch(){
+  try {
+    if (!imgData) { status('No image. Upload or capture first.'); return; }
+    status('Identifying item…');
+    const resp = await fetch('/.netlify/functions/vision', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ imageData: imgData }) });
+    const text = await resp.text();
+    let data = {}; try { data = JSON.parse(text); } catch(e){ throw new Error('Vision returned non‑JSON'); }
+    if (!resp.ok || data.error) throw new Error(data.error || ('Vision failed ' + resp.status));
+    debug({vision:data});
+    const labels = (data.responses?.[0]?.labelAnnotations || []).filter(l => l.score >= 0.65);
+    const webGuess = (data.responses?.[0]?.webDetection?.bestGuessLabels?.[0]?.label) || null;
+    const guess = webGuess || labels[0]?.description || (keywords.value.trim()) || 'antique';
+    const desc = labels.map(l => l.description).slice(0, 6).join(', ');
+    lastGuess = guess; nameEl.textContent = guess; descEl.textContent = desc || '—';
+    status('Searching multiple marketplaces…');
+    const composite = (keywords.value ? (guess + ' ' + keywords.value) : guess);
+    await aggregate(composite);
+  } catch(e){ console.error(e); debug(e.message || e); status('Auto‑ID failed. Enter keywords and Try Text‑Only.'); }
+}
+
+async function aggregate(terms){
+  try{
+    grid.innerHTML = '';
+    const res = await fetch(`/.netlify/functions/market-aggregate?query=${encodeURIComponent(terms)}`);
+    const text = await res.text();
+    let data = {};
+    try { data = JSON.parse(text); } catch(e){ throw new Error('Aggregator returned non‑JSON'); }
+    if (!res.ok) throw new Error('Aggregator error ' + res.status);
+    render(data); status(`Showing results for: ${terms}`);
+  }catch(e){ console.error(e); debug(e.message || e); status('Market aggregation failed. Check functions & env vars.'); }
+}
+
+function render(data){
+  grid.innerHTML = '';
+  (data.platforms || []).forEach(p => {
+    const d = document.createElement('div'); d.className = 'tile';
+    const minP = p.minPrice!=null ? ('$'+p.minPrice) : '—';
+    const maxP = p.maxPrice!=null ? ('$'+p.maxPrice) : '—';
+    const count = (p.count!=null) ? p.count : '—';
+    const status = p.status || 'OK';
+    d.innerHTML = `
+      <h3>${p.name} <span class="meta"><span class="tag">${status}</span></span></h3>
+      <div class="meta">
+        <span class="tag">Items: ${count}</span>
+        <span class="tag">Min: ${minP}</span>
+        <span class="tag">Max: ${maxP}</span>
+      </div>
+      <div class="desc">${p.description || ''}</div>
+      ${p.samples && p.samples.length ? p.samples.slice(0,3).map(s => `
+        <div>
+          <div style="font-weight:600">${s.title || ''}</div>
+          ${s.price ? `<div class="price">$${s.price}</div>` : ''}
+        </div>`).join('') : ''}
+      <a href="${p.link}" target="_blank" rel="noopener">Open on ${p.name}</a>
+    `;
+    grid.appendChild(d);
+  });
+}
+</script>
+</body>
+</html>
