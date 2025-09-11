@@ -4,12 +4,27 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Relica — Multi‑Platform Analysis</title>
+  
+  <!-- Mobile App Icons -->
+  <link rel="icon" href="logo_gold_color.png" type="image/png">
+  <link rel="apple-touch-icon" href="logo_gold_color.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="logo_gold_color.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="logo_gold_color.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="logo_gold_color.png">
+  
+  <!-- Mobile Web App Meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Relica">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#8a6d3b">
+  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
     :root{--bg:#0e0f11;--panel:#17181b;--muted:#212329;--text:#e9eaee;--sub:#a8acb3;--accent:#8a6d3b;--accent2:#a47c3b;--ok:#47c27a;--warn:#ffb74d;--border:#2f323a;--bad:#ef5350}
     *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
     .wrap{max-width:1100px;margin:24px auto;padding:16px} .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.35)}
-    header{display:flex;align-items:center;gap:14px;padding:16px;border-bottom:1px solid var(--border)} header img{width:44px;height:44px;object-fit:contain}
+    header{display:flex;align-items:center;gap:14px;padding:16px;border-bottom:1px solid var(--border)} header img{width:100px;height:100px;object-fit:contain}
     header .brand{display:flex;flex-direction:column} header .brand h1{margin:0;font-size:22px;color:var(--accent)} header .brand small{color:var(--sub)}
     .pill{margin-left:auto;border:1px solid var(--border);border-radius:999px;padding:4px 10px;color:var(--sub);font-size:12px}
     .content{padding:16px} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px} @media (max-width: 900px){.grid2{grid-template-columns:1fr}}
@@ -27,7 +42,7 @@
     .price{font-weight:800;color:var(--ok)} .bad{color:var(--bad)} .desc{color:var(--sub);font-size:14px}
     .tile a{border:1px solid var(--border);padding:8px 10px;border-radius:8px;text-align:center;color:var(--text);text-decoration:none}
     .tile a:hover{background:var(--accent);color:#000;border-color:transparent} footer{padding:14px;border-top:1px solid var(--border);text-align:center;color:var(--sub)}
-    .debug{margin-top:10px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#ccc;white-space:pre-wrap;background:#111;border:1px solid var(--border);border-radius:8px;padding:8px;display:none}
+    .debug{display:none!important}
   </style>
 </head>
 <body>
@@ -65,6 +80,7 @@
       <div>
         <div class="row"><strong>Identified:</strong> <span id="name">—</span></div>
         <div class="row"><strong>Description:</strong> <span id="desc">—</span></div>
+        <div class="row" id="visiblePriceRow" style="display:none"><strong>Visible Price:</strong> <span id="visiblePrice" class="price">—</span></div>
         <img id="preview" style="margin-top:10px;width:100%;max-height:320px;object-fit:cover;border:1px solid var(--border);border-radius:12px;display:none">
       </div>
     </div>
@@ -90,6 +106,8 @@ const searchBtn = document.getElementById('search');
 const idFallbackBtn = document.getElementById('idFallback');
 const nameEl = document.getElementById('name');
 const descEl = document.getElementById('desc');
+const visiblePriceEl = document.getElementById('visiblePrice');
+const visiblePriceRow = document.getElementById('visiblePriceRow');
 const preview = document.getElementById('preview');
 const grid = document.getElementById('grid');
 const debugEl = document.getElementById('debug');
@@ -154,21 +172,62 @@ idFallbackBtn.onclick = () => {
 async function analyzeAndSearch(){
   try {
     if (!imgData) { status('No image. Upload or capture first.'); return; }
-    status('Identifying item…');
+    status('Advanced AI analyzing antique…');
     const resp = await fetch('/.netlify/functions/vision', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ imageData: imgData }) });
     const text = await resp.text();
     let data = {}; try { data = JSON.parse(text); } catch(e){ throw new Error('Vision returned non‑JSON'); }
     if (!resp.ok || data.error) throw new Error(data.error || ('Vision failed ' + resp.status));
     debug({vision:data});
-    const labels = (data.responses?.[0]?.labelAnnotations || []).filter(l => l.score >= 0.65);
+    
+    // Extract enhanced analysis from GPT-4 Vision
+    const analysis = data.responses?.[0]?.antiqueAnalysis;
     const webGuess = (data.responses?.[0]?.webDetection?.bestGuessLabels?.[0]?.label) || null;
-    const guess = webGuess || labels[0]?.description || (keywords.value.trim()) || 'antique';
-    const desc = labels.map(l => l.description).slice(0, 6).join(', ');
-    lastGuess = guess; nameEl.textContent = guess; descEl.textContent = desc || '—';
-    status('Searching multiple marketplaces…');
-    const composite = (keywords.value ? (guess + ' ' + keywords.value) : guess);
-    await aggregate(composite);
-  } catch(e){ console.error(e); debug(e.message || e); status('Auto‑ID failed. Enter keywords and Try Text‑Only.'); }
+    const labels = (data.responses?.[0]?.labelAnnotations || []).filter(l => l.score >= 0.65);
+    
+    if (analysis) {
+      // Use detailed GPT-4 analysis
+      const itemName = analysis.itemName || webGuess || 'Unidentified Item';
+      const description = `${analysis.description || ''} | Period: ${analysis.estimatedPeriod || 'Unknown'} | Materials: ${(analysis.materials || []).join(', ')} | Condition: ${analysis.condition || 'Unknown'} | Rarity: ${analysis.rarity || 'Unknown'}`;
+      
+      lastGuess = itemName;
+      nameEl.textContent = itemName;
+      descEl.textContent = description;
+      
+      // Show visible price if detected
+      if (analysis.visiblePrice) {
+        visiblePriceEl.textContent = `$${analysis.visiblePrice}`;
+        visiblePriceRow.style.display = 'flex';
+      } else {
+        visiblePriceRow.style.display = 'none';
+      }
+      
+      status('Searching markets with detailed analysis…');
+      
+      // Create comprehensive search terms using AI analysis
+      const searchTerms = analysis.searchTerms || [];
+      const enhancedQuery = [itemName, ...searchTerms.slice(0, 3)].join(' ');
+      
+      await aggregate(enhancedQuery);
+      
+      // Show additional analysis info in debug
+      debug({
+        'AI Analysis': analysis,
+        'Search Query': enhancedQuery,
+        'Confidence': analysis.confidence || 'Unknown'
+      });
+      
+    } else {
+      // Fallback to basic analysis
+      const guess = webGuess || labels[0]?.description || (keywords.value.trim()) || 'antique';
+      const desc = labels.map(l => l.description).slice(0, 6).join(', ');
+      lastGuess = guess; nameEl.textContent = guess; descEl.textContent = desc || '—';
+      visiblePriceRow.style.display = 'none'; // Hide price row for basic analysis
+      status('Searching multiple marketplaces…');
+      const composite = (keywords.value ? (guess + ' ' + keywords.value) : guess);
+      await aggregate(composite);
+    }
+    
+  } catch(e){ console.error(e); debug(e.message || e); status('AI analysis failed. Check API key configuration.'); }
 }
 
 async function aggregate(terms){
@@ -187,22 +246,32 @@ function render(data){
   grid.innerHTML = '';
   (data.platforms || []).forEach(p => {
     const d = document.createElement('div'); d.className = 'tile';
-    const minP = p.minPrice!=null ? ('$'+p.minPrice) : '—';
-    const maxP = p.maxPrice!=null ? ('$'+p.maxPrice) : '—';
+    const minP = p.minPrice!=null ? ('$'+p.minPrice.toLocaleString()) : '—';
+    const maxP = p.maxPrice!=null ? ('$'+p.maxPrice.toLocaleString()) : '—';
     const count = (p.count!=null) ? p.count : '—';
     const status = p.status || 'OK';
+    
+    // Calculate average price if both min and max exist
+    let avgPrice = '';
+    if (p.minPrice != null && p.maxPrice != null && p.minPrice !== p.maxPrice) {
+      const avg = Math.round((p.minPrice + p.maxPrice) / 2);
+      avgPrice = `<span class="tag">Avg: $${avg.toLocaleString()}</span>`;
+    }
+    
     d.innerHTML = `
       <h3>${p.name} <span class="meta"><span class="tag">${status}</span></span></h3>
       <div class="meta">
         <span class="tag">Items: ${count}</span>
         <span class="tag">Min: ${minP}</span>
         <span class="tag">Max: ${maxP}</span>
+        ${avgPrice}
       </div>
       <div class="desc">${p.description || ''}</div>
       ${p.samples && p.samples.length ? p.samples.slice(0,3).map(s => `
-        <div>
-          <div style="font-weight:600">${s.title || ''}</div>
-          ${s.price ? `<div class="price">$${s.price}</div>` : ''}
+        <div style="margin:4px 0;padding:6px;background:var(--bg);border-radius:6px;">
+          <div style="font-weight:600;font-size:14px;">${s.title || 'Item'}</div>
+          ${s.price ? `<div class="price">$${s.price.toLocaleString()}</div>` : '<div style="color:var(--sub);font-size:12px;">Price not available</div>'}
+          ${s.source ? `<div style="color:var(--sub);font-size:11px;">${s.source}</div>` : ''}
         </div>`).join('') : ''}
       <a href="${p.link}" target="_blank" rel="noopener">Open on ${p.name}</a>
     `;
