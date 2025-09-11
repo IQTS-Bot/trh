@@ -8,6 +8,7 @@ exports.handler = async (event) => {
   catch(e){ console.error(e); return { statusCode:200, headers, body: JSON.stringify({ query, platforms: fallback(query), degraded:true }) }; }
 };
 async function aggregate(q){
+
   // Use AI-powered price estimation instead of unreliable scraping
   try {
     const aiPricing = await getAIPricing(q);
@@ -39,7 +40,7 @@ Return ONLY valid JSON in this exact format:
         {"title": "Vintage baseball glove 1920s", "price": 85, "source": "eBay estimate"},
         {"title": "Antique leather sports equipment", "price": 125, "source": "eBay estimate"}
       ],
-      "link": "https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(itemName)}"
+      "link": "https://www.ebay.com/sch/"
     },
     {
       "name": "Heritage Auctions", 
@@ -52,7 +53,7 @@ Return ONLY valid JSON in this exact format:
         {"title": "1925 baseball memorabilia", "price": 165, "source": "Heritage estimate"},
         {"title": "Vintage sports collectible", "price": 220, "source": "Heritage estimate"}
       ],
-      "link": "https://www.ha.com/search?query=${encodeURIComponent(itemName)}"
+      "link": "https://www.ha.com/search/"
     },
     {
       "name": "LiveAuctioneers",
@@ -64,7 +65,7 @@ Return ONLY valid JSON in this exact format:
       "samples": [
         {"title": "Antique sports memorabilia", "price": 95, "source": "LiveAuctioneers estimate"}
       ],
-      "link": "https://www.liveauctioneers.com/search/?q=${encodeURIComponent(itemName)}"
+      "link": "https://www.liveauctioneers.com/search/"
     },
     {
       "name": "WorthPoint",
@@ -76,7 +77,7 @@ Return ONLY valid JSON in this exact format:
       "samples": [
         {"title": "Similar vintage item sold", "price": 140, "source": "WorthPoint estimate"}
       ],
-      "link": "https://www.worthpoint.com/search?query=${encodeURIComponent(itemName)}"
+      "link": "https://www.worthpoint.com/search/"
     },
     {
       "name": "Kovels",
@@ -88,12 +89,12 @@ Return ONLY valid JSON in this exact format:
       "samples": [
         {"title": "Price guide valuation", "price": 145, "source": "Kovels estimate"}
       ],
-      "link": "https://www.kovels.com/search?q=${encodeURIComponent(itemName)}"
+      "link": "https://www.kovels.com/search/"
     }
   ]
 }
 
-Base realistic estimates on item rarity, condition, age, materials, and current collector demand.`;
+Base realistic estimates on item rarity, condition, age, materials, and current collector demand. Provide specific, realistic prices for the actual item type.`;
 
   const payload = {
     model: "gpt-4o",
@@ -117,8 +118,28 @@ Base realistic estimates on item rarity, condition, age, materials, and current 
   const content = result.choices[0].message.content;
   
   try {
-    return JSON.parse(content);
+    const parsed = JSON.parse(content);
+    
+    // Post-process the data to add proper links
+    if (parsed.platforms) {
+      parsed.platforms.forEach(platform => {
+        if (platform.name === 'eBay') {
+          platform.link = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(itemName)}`;
+        } else if (platform.name === 'Heritage Auctions') {
+          platform.link = `https://www.ha.com/search?query=${encodeURIComponent(itemName)}`;
+        } else if (platform.name === 'LiveAuctioneers') {
+          platform.link = `https://www.liveauctioneers.com/search/?q=${encodeURIComponent(itemName)}`;
+        } else if (platform.name === 'WorthPoint') {
+          platform.link = `https://www.worthpoint.com/search?query=${encodeURIComponent(itemName)}`;
+        } else if (platform.name === 'Kovels') {
+          platform.link = `https://www.kovels.com/search?q=${encodeURIComponent(itemName)}`;
+        }
+      });
+    }
+    
+    return parsed;
   } catch (parseError) {
+    console.error('Failed to parse AI response:', content);
     throw new Error('Failed to parse AI pricing response');
   }
 }
