@@ -187,7 +187,16 @@ async function analyzeAndSearch(){
     if (analysis) {
       // Use detailed GPT-4 analysis
       const itemName = analysis.itemName || webGuess || 'Unidentified Item';
-      const description = `${analysis.description || ''} | Period: ${analysis.estimatedPeriod || 'Unknown'} | Materials: ${(analysis.materials || []).join(', ')} | Condition: ${analysis.condition || 'Unknown'} | Rarity: ${analysis.rarity || 'Unknown'}`;
+      
+      // Clean up description - remove JSON formatting
+      let cleanDescription = analysis.description || '';
+      if (typeof cleanDescription === 'object') {
+        cleanDescription = JSON.stringify(cleanDescription);
+      }
+      // Remove JSON syntax and clean up
+      cleanDescription = cleanDescription.replace(/[{}"\[\]]/g, '').replace(/,/g, ', ').trim();
+      
+      const description = `${cleanDescription} | Period: ${analysis.estimatedPeriod || 'Unknown'} | Materials: ${(analysis.materials || []).join(', ')} | Condition: ${analysis.condition || 'Unknown'} | Rarity: ${analysis.rarity || 'Unknown'}`;
       
       lastGuess = itemName;
       nameEl.textContent = itemName;

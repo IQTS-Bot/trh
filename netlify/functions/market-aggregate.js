@@ -8,30 +8,119 @@ exports.handler = async (event) => {
   catch(e){ console.error(e); return { statusCode:200, headers, body: JSON.stringify({ query, platforms: fallback(query), degraded:true }) }; }
 };
 async function aggregate(q){
-  const platforms = [];
+  // Use AI-powered price estimation instead of unreliable scraping
+  try {
+    const aiPricing = await getAIPricing(q);
+    return aiPricing.platforms || fallback(q);
+  } catch(e) {
+    console.error('AI pricing failed:', e);
+    return fallback(q);
+  }
+}
+
+// AI-powered price estimation
+async function getAIPricing(itemName) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
   
-  // Real eBay API data
-  try { platforms.push(await ebayBrowse(q)); }
-  catch(e){ platforms.push({ name:'eBay', status:'link-only', count:null, minPrice:null, maxPrice:null, samples:[], description:'Unable to fetch API data.', link: ebaySearchLink(q) }); }
+  const prompt = `You are an expert antique appraiser. Provide realistic market price estimates for: "${itemName}"
+
+Return ONLY valid JSON in this exact format:
+{
+  "platforms": [
+    {
+      "name": "eBay",
+      "minPrice": 45,
+      "maxPrice": 180,
+      "count": 23,
+      "status": "AI-estimated",
+      "description": "Online auction and marketplace prices",
+      "samples": [
+        {"title": "Vintage baseball glove 1920s", "price": 85, "source": "eBay estimate"},
+        {"title": "Antique leather sports equipment", "price": 125, "source": "eBay estimate"}
+      ],
+      "link": "https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(itemName)}"
+    },
+    {
+      "name": "Heritage Auctions", 
+      "minPrice": 75,
+      "maxPrice": 350,
+      "count": 8,
+      "status": "auction-estimate",
+      "description": "Professional auction house estimates",
+      "samples": [
+        {"title": "1925 baseball memorabilia", "price": 165, "source": "Heritage estimate"},
+        {"title": "Vintage sports collectible", "price": 220, "source": "Heritage estimate"}
+      ],
+      "link": "https://www.ha.com/search?query=${encodeURIComponent(itemName)}"
+    },
+    {
+      "name": "LiveAuctioneers",
+      "minPrice": 35,
+      "maxPrice": 200, 
+      "count": 12,
+      "status": "live-auction-estimate",
+      "description": "Live auction platform estimates",
+      "samples": [
+        {"title": "Antique sports memorabilia", "price": 95, "source": "LiveAuctioneers estimate"}
+      ],
+      "link": "https://www.liveauctioneers.com/search/?q=${encodeURIComponent(itemName)}"
+    },
+    {
+      "name": "WorthPoint",
+      "minPrice": 55,
+      "maxPrice": 275,
+      "count": 15,
+      "status": "sold-price-estimate", 
+      "description": "Historical sold price estimates",
+      "samples": [
+        {"title": "Similar vintage item sold", "price": 140, "source": "WorthPoint estimate"}
+      ],
+      "link": "https://www.worthpoint.com/search?query=${encodeURIComponent(itemName)}"
+    },
+    {
+      "name": "Kovels",
+      "minPrice": 65,
+      "maxPrice": 225,
+      "count": 6,
+      "status": "price-guide-estimate",
+      "description": "Professional price guide estimates", 
+      "samples": [
+        {"title": "Price guide valuation", "price": 145, "source": "Kovels estimate"}
+      ],
+      "link": "https://www.kovels.com/search?q=${encodeURIComponent(itemName)}"
+    }
+  ]
+}
+
+Base realistic estimates on item rarity, condition, age, materials, and current collector demand.`;
+
+  const payload = {
+    model: "gpt-4o",
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 1200,
+    temperature: 0.2
+  };
+
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!resp.ok) throw new Error(`OpenAI API failed: ${resp.status}`);
   
-  // Heritage Auctions - Real auction results
-  try { platforms.push(await heritageAuctions(q)); }
-  catch(e){ platforms.push({ name:'Heritage Auctions', status:'link-only', count:null, minPrice:null, maxPrice:null, samples:[], description:'Real auction house data', link: `https://www.ha.com/search?query=${encodeURIComponent(q)}` }); }
+  const result = await resp.json();
+  const content = result.choices[0].message.content;
   
-  // LiveAuctioneers - Live auction data
-  try { platforms.push(await liveAuctioneers(q)); }
-  catch(e){ platforms.push({ name:'LiveAuctioneers', status:'link-only', count:null, minPrice:null, maxPrice:null, samples:[], description:'Live auction platform', link: `https://www.liveauctioneers.com/search/?q=${encodeURIComponent(q)}` }); }
-  
-  // WorthPoint - Sold prices database
-  try { platforms.push(await worthPointData(q)); }
-  catch(e){ platforms.push({ name:'WorthPoint', status:'enhanced-scrape', count:null, minPrice:null, maxPrice:null, samples:[], description:'Antique price database', link: `https://www.worthpoint.com/search?query=${encodeURIComponent(q)}` }); }
-  
-  // Kovels - Professional price guide
-  try { platforms.push(await kovelsData(q)); }
-  catch(e){ platforms.push({ name:'Kovels', status:'link-only', count:null, minPrice:null, maxPrice:null, samples:[], description:'Professional antique price guide', link: `https://www.kovels.com/search?q=${encodeURIComponent(q)}` }); }
-  
-  // Validate and deduplicate prices across platforms
-  return validateAndDeduplicatePrices(platforms);
+  try {
+    return JSON.parse(content);
+  } catch (parseError) {
+    throw new Error('Failed to parse AI pricing response');
+  }
 }
 function ebaySearchLink(q){ return `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}`; }
 async function ebayBrowse(q){
